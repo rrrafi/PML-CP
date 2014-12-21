@@ -1,0 +1,67 @@
+---
+title: "HAR Prediction"
+output: html_document
+---
+
+The machine learning task at hand is predicting the movement a subject made given data from a number of sensors.  It is a supervised classification task with mostly continuous features.
+
+```{r, echo=FALSE, cache=TRUE}
+library(caret)
+library(gbm)
+
+setwd("~/Dropbox/RR/Grad school/CS/R")
+har <- read.csv("pml-training.csv")
+obs <- dim(har)[1]
+vars <- dim(har)[2]
+har2 <- har[,8:160]
+inTrain <- createDataPartition(y=har2$classe, p=0.75, list=FALSE)
+training_set <- har2[inTrain,]
+crossval_set <- har2[-inTrain,]
+
+t2 <- training_set[,c("roll_belt","pitch_belt","yaw_belt","total_accel_belt","gyros_belt_x","gyros_belt_y","gyros_belt_z","accel_belt_x","accel_belt_y","accel_belt_z","magnet_belt_x","magnet_belt_y","magnet_belt_z","roll_arm","pitch_arm","yaw_arm","total_accel_arm","gyros_arm_x","gyros_arm_y","gyros_arm_z","accel_arm_x","accel_arm_y","accel_arm_z","magnet_arm_x","magnet_arm_y","magnet_arm_z","roll_dumbbell","pitch_dumbbell","yaw_dumbbell","total_accel_dumbbell","gyros_dumbbell_x","gyros_dumbbell_y","gyros_dumbbell_z","accel_dumbbell_x","accel_dumbbell_y","accel_dumbbell_z","magnet_dumbbell_x","magnet_dumbbell_y","magnet_dumbbell_z","roll_forearm","pitch_forearm","yaw_forearm","total_accel_forearm","gyros_forearm_x","gyros_forearm_y","gyros_forearm_z","accel_forearm_x","accel_forearm_y","accel_forearm_z","magnet_forearm_x","magnet_forearm_y","magnet_forearm_z","classe")]
+
+c2 <- crossval_set[,c("roll_belt","pitch_belt","yaw_belt","total_accel_belt","gyros_belt_x","gyros_belt_y","gyros_belt_z","accel_belt_x","accel_belt_y","accel_belt_z","magnet_belt_x","magnet_belt_y","magnet_belt_z","roll_arm","pitch_arm","yaw_arm","total_accel_arm","gyros_arm_x","gyros_arm_y","gyros_arm_z","accel_arm_x","accel_arm_y","accel_arm_z","magnet_arm_x","magnet_arm_y","magnet_arm_z","roll_dumbbell","pitch_dumbbell","yaw_dumbbell","total_accel_dumbbell","gyros_dumbbell_x","gyros_dumbbell_y","gyros_dumbbell_z","accel_dumbbell_x","accel_dumbbell_y","accel_dumbbell_z","magnet_dumbbell_x","magnet_dumbbell_y","magnet_dumbbell_z","roll_forearm","pitch_forearm","yaw_forearm","total_accel_forearm","gyros_forearm_x","gyros_forearm_y","gyros_forearm_z","accel_forearm_x","accel_forearm_y","accel_forearm_z","magnet_forearm_x","magnet_forearm_y","magnet_forearm_z","classe")]
+
+```
+
+# Pre-processing #
+
+The "training"" dataset contains `r obs` observations and `r vars` variables.  We split the training dataset further up into a new true training set (75%) and a cross-validation set (25%).
+
+The first seven variables (columns) do not contain variables that are relevant for (generalized) prediction, as they are e.g. the index number, time stamps, and subject names.
+
+A summary of the dataset and its variables (not shown here for space reasons) indicates that, of the 153 feature variables in the dataset, only 52 do not contain a very significant number of NAs.  We therefore only consider these 52 features for training.
+
+# Training #
+
+## Simple tree ##
+
+As a baseline, we train a simple tree.  We use Caret's confusionMatrix function to output a number of relevant metrics for the evaluation of the trained classifier.
+
+```{r, echo=FALSE, cache=TRUE}
+fit_tree <- train(classe~.,data=t2,method="rpart")
+preds_tree <- predict(fit_tree,newdata=c2)
+confusionMatrix(c2$classe,preds_tree)
+```
+
+## Boosted tree ##
+
+We can see from the confusion matrix of the simple tree that the classifier still confuses the classes a lot.  We therefore now consider a boosted tree.  Its output follows below.
+
+```{r, echo=FALSE, cache=TRUE}
+fit_boost <- train(classe~.,data=t2,method="gbm")
+preds_boost <- predict(fit_boost,newdata=c2,verbose=FALSE)
+confusionMatrix(c2$classe,preds_boost)
+```
+
+It is evident that the boosted tree improves the classification performance significantly, e.g. raising overall acuracy from 0.50 to 0.97.  This is a good performance by any standard and we will use this classifier on the test set.
+
+# Classification of test set #
+
+The test set predictions follow below.
+
+```{r, echo=FALSE, cache=TRUE}
+test_set <- read.csv("pml-testing.csv")
+test2 <- test_set[,c("roll_belt","pitch_belt","yaw_belt","total_accel_belt","gyros_belt_x","gyros_belt_y","gyros_belt_z","accel_belt_x","accel_belt_y","accel_belt_z","magnet_belt_x","magnet_belt_y","magnet_belt_z","roll_arm","pitch_arm","yaw_arm","total_accel_arm","gyros_arm_x","gyros_arm_y","gyros_arm_z","accel_arm_x","accel_arm_y","accel_arm_z","magnet_arm_x","magnet_arm_y","magnet_arm_z","roll_dumbbell","pitch_dumbbell","yaw_dumbbell","total_accel_dumbbell","gyros_dumbbell_x","gyros_dumbbell_y","gyros_dumbbell_z","accel_dumbbell_x","accel_dumbbell_y","accel_dumbbell_z","magnet_dumbbell_x","magnet_dumbbell_y","magnet_dumbbell_z","roll_forearm","pitch_forearm","yaw_forearm","total_accel_forearm","gyros_forearm_x","gyros_forearm_y","gyros_forearm_z","accel_forearm_x","accel_forearm_y","accel_forearm_z","magnet_forearm_x","magnet_forearm_y","magnet_forearm_z")]
+preds_test <- predict(fit_boost,newdata=test2)
+preds_test
